@@ -49,12 +49,12 @@ cd BDX-R-Isaaclab/scripts/rsl_rl/
 ```
 
 ```bash
-python train.py --task=Bdxr-Velocity-Flat-v0 --headless
+python train.py --task=Bdxr-Walk-v0 --headless
 
 ```
 
 ```bash
-python play.py --task=Bdxr-Velocity-Flat-Play-v0 --num_envs 100
+python play.py --task=Bdxr-Walk-Play-v0 --num_envs 100
 
 ```
 

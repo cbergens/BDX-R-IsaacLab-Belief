@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -8,12 +8,12 @@ import gymnasium as gym
 from . import agents
 
 ##
-# Register Gym environments.
+# Register Gym environments
 ##
 
 
 gym.register(
-    id="Bdxr-Velocity-Flat-v0",
+    id="Bdxr-Walk-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -23,7 +23,7 @@ gym.register(
 )
 
 gym.register(
-    id="Bdxr-Velocity-Flat-Play-v0",
+    id="Bdxr-Walk-Play-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={

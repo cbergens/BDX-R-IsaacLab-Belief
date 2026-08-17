@@ -1,443 +1,510 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+
+import copy
 import math
-from isaaclab.managers import RewardTermCfg as RewTerm
-from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import configclass
+
 import isaaclab.sim as sim_utils
-
-
-from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg, RewardsCfg
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
-from isaaclab.terrains import TerrainImporterCfg
-import isaaclab.terrains as terrain_gen
-from isaaclab.managers import CurriculumTermCfg as CurrTerm
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
-from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
-from isaaclab.sensors import ImuCfg
+from isaaclab.managers import RewardTermCfg as RewTerm
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-#from __future__ import annotations
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import ContactSensorCfg, ImuCfg
+from isaaclab.terrains import TerrainImporterCfg
+from isaaclab.utils import configclass
+from isaaclab.utils.noise import NoiseModelWithAdditiveBiasCfg
+from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
-from typing import TYPE_CHECKING
-import torch
-
-from isaaclab.assets import Articulation, RigidObject
-from isaaclab.envs import ManagerBasedRLEnv  # <<<<<<<<<< MOVE THE IMPORT HERE
-from isaaclab.managers import ManagerTermBase, SceneEntityCfg
-from isaaclab.sensors import ContactSensor
-
-if TYPE_CHECKING:
-    # It's fine to keep this import here for type checkers if needed, but the one above is essential for runtime.
-    from isaaclab.managers import RewardTermCfg
-
-# TODO: Clean up all non used imports
+from . import mdp
+from .config import ACTION, BODIES, COMMANDS, EVENTS, GAIT, JOINTS, OBS_NOISE, REWARD_PARAMS, WEIGHTS
 
 ##
 # Pre-defined configs
 ##
 
-from BDXR.robots.bdxr import BDX_R_CFG # isort:skip
+from BDXR.robots import BDX_R_CFG  # isort: skip
+from BDXR.terrains import BDXR_ROUGH_CFG  # isort: skip
 
-import BDXR.tasks.bdxr_locomotion.mdp as mdp  # isort:skip
 
-COBBLESTONE_ROAD_CFG = terrain_gen.TerrainGeneratorCfg(
-    size=(8.0, 8.0),
-    border_width=20.0,
-    num_rows=9,
-    num_cols=21,
-    horizontal_scale=0.1,
-    vertical_scale=0.005,
-    slope_threshold=0.75,
-    difficulty_range=(0.0, 1.0),
-    use_cache=False,
-    sub_terrains={
-        "flat": terrain_gen.MeshPlaneTerrainCfg(proportion=0.5),
-    },
-)
+##
+# Scene definition
+##
+
 
 @configclass
-class CommandsCfg:
-    """Command specifications for the MDP."""
+class BdxrSceneCfg(InteractiveSceneCfg):
+    """Configuration for a BDX-R scene."""
 
-    base_velocity = mdp.UniformVelocityCommandCfg(
-        asset_name="robot",
-        resampling_time_range=(10.0, 10.0),
-        rel_standing_envs=0.02,
-        rel_heading_envs=1.0,
-        heading_command=True,
-        heading_control_stiffness=0.5,
-        debug_vis=False,
-        ranges=mdp.UniformVelocityCommandCfg.Ranges(
-            lin_vel_x=(-1.0, 1.0), lin_vel_y=(-1.0, 1.0), ang_vel_z=(-1.0, 1.0), heading=(-math.pi, math.pi)
+    # ground terrain
+    terrain = TerrainImporterCfg(
+        prim_path="/World/ground",
+        terrain_type="generator",
+        terrain_generator=BDXR_ROUGH_CFG,
+        max_init_terrain_level=0,
+        collision_group=-1,
+        physics_material=sim_utils.RigidBodyMaterialCfg(
+            friction_combine_mode="multiply",
+            restitution_combine_mode="multiply",
+            static_friction=1.0,
+            dynamic_friction=1.0,
         ),
+        debug_vis=False,
     )
+
+    # robot
+    robot: ArticulationCfg = BDX_R_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+
+    # sensors
+    contact_forces = ContactSensorCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/.*",
+        history_length=3,
+        track_air_time=True,
+    )
+
+    imu = ImuCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/base_link",
+        offset=ImuCfg.OffsetCfg(
+            # The URDF's imu link, forward-kinematicked into base_link. The fixed joints
+            # along the way are all identity in rotation, so the frames stay aligned
+            pos=(-0.13972, 0.0209, 0.08864),
+            rot=(1.0, 0.0, 0.0, 0.0),  # (w, x, y, z)
+        ),
+        # Default makes lin_acc_b read ~+1g upward at rest, matching a real accelerometer
+        gravity_bias=(0.0, 0.0, 9.81),
+    )
+
+    # lights
+    dome_light = AssetBaseCfg(
+        prim_path="/World/DomeLight",
+        spawn=sim_utils.DomeLightCfg(color=(0.9, 0.9, 0.9), intensity=500.0),
+    )
+
+
+##
+# MDP settings
+##
+
 
 @configclass
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    joint_pos = mdp.JointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.5, use_default_offset=True)
+    # Joint position action, limit the rate at which the action can change
+    joint_pos = mdp.RateLimitedJointPositionActionCfg(
+        asset_name="robot",
+        joint_names=JOINTS.legs,
+        preserve_order=True,
+        scale=ACTION.scale,
+        use_default_offset=True,
+        max_joint_velocity=ACTION.max_joint_velocity,
+    )
+
 
 @configclass
 class ObservationsCfg:
     """Observation specifications for the MDP."""
-    @configclass
-    class CriticCfg(ObsGroup):
-        # observation terms (order preserved)
-        base_lin_vel = ObsTerm(
-            func=mdp.base_lin_vel
-        )
-        base_ang_vel = ObsTerm(
-            func=mdp.base_ang_vel
-        )
-        projected_gravity = ObsTerm(
-            func=mdp.projected_gravity,
-        )
-        velocity_commands = ObsTerm(
-            func=mdp.generated_commands, params={"command_name": "base_velocity"}
-        )
-        actions = ObsTerm(func=mdp.last_action)
-        imu_projected_gravity = ObsTerm(
-            func=mdp.imu_projected_gravity,
-            params={"asset_cfg": SceneEntityCfg("imu")},
-        )
-        imu_ang_vel = ObsTerm(
-            func=mdp.imu_ang_vel,
-            params={"asset_cfg": SceneEntityCfg("imu")},
-        )
-        joint_torques = ObsTerm(
-            func=mdp.joint_effort,
-            params={"asset_cfg": SceneEntityCfg("robot")},
-        )
-        feet_contact_forces = ObsTerm(
-            func=mdp.body_incoming_wrench,
-            params={
-                "asset_cfg": SceneEntityCfg(
-                    "robot", body_names=[".*_Foot"]
-                )
-            },
-        )
-        # Joint positions and velocities with less noise (privileged accurate state)
-        joint_pos_accurate = ObsTerm(
-            func=mdp.joint_pos_rel,
-            noise=Unoise(n_min=-0.0001, n_max=0.0001),
-        )
-        joint_vel_accurate = ObsTerm(
-            func=mdp.joint_vel_rel,
-            scale =0.05,
-            noise=Unoise(n_min=-0.0001, n_max=0.0001),
-        )
 
-        # No noise for the critic
-        def __post_init__(self):
-            self.enable_corruption = False
-
+    # Policy (Actor) Cfg
     @configclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
-        # observation terms (order preserved)
-        imu_ang_vel = ObsTerm(func=mdp.imu_ang_vel, scale=0.2, noise=Unoise(n_min=-0.35, n_max=0.35))
+        # Gyro + IMU
+        imu_ang_vel = ObsTerm(
+            func=mdp.imu_ang_vel,
+            noise=Unoise(n_min=-OBS_NOISE.imu_ang_vel, n_max=OBS_NOISE.imu_ang_vel),
+        )
 
-        # TODO: Adds IMu Projected Gravity
         imu_projected_gravity = ObsTerm(
             func=mdp.imu_projected_gravity,
-            noise=Unoise(n_min=-0.1, n_max=0.1),
+            noise=NoiseModelWithAdditiveBiasCfg(
+                noise_cfg=Unoise(n_min=-OBS_NOISE.imu_gravity, n_max=OBS_NOISE.imu_gravity),
+                bias_noise_cfg=Unoise(n_min=-OBS_NOISE.imu_gravity_bias, n_max=OBS_NOISE.imu_gravity_bias),
+            ),
         )
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.05, n_max=0.05))
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel, scale=0.05, noise=Unoise(n_min=-1.5, n_max=1.5))
-        actions = ObsTerm(func=mdp.last_action)
+
+        # Leg joint positions
+        joint_pos = ObsTerm(
+            func=mdp.joint_pos_rel,
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=JOINTS.legs, preserve_order=True)},
+            noise=Unoise(n_min=-OBS_NOISE.joint_pos, n_max=OBS_NOISE.joint_pos),
+        )
+
+        # Joint velocity
+        joint_vel = ObsTerm(
+            func=mdp.joint_vel_rel,
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=JOINTS.legs, preserve_order=True)},
+            noise=Unoise(n_min=-OBS_NOISE.joint_vel, n_max=OBS_NOISE.joint_vel),
+        )
+
+        # Contact Sensors
+        # Bit-flip rather than additive noise: the switch's failure mode is a wrong bit
+        # (bounce on impact, missed marginal loading), not drift. Routed through `noise=`
+        # so CriticCfg's enable_corruption=False strips it
+        feet_contact = ObsTerm(
+            func=mdp.feet_contact_binary,
+            params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=BODIES.feet)},
+            noise=mdp.BitFlipNoiseCfg(p=OBS_NOISE.foot_contact_flip),
+        )
+
+        # Command observations
         velocity_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
 
-        def __post_init__(self):
+        # Gait phase clock observation
+        gait_phase = ObsTerm(
+            func=mdp.gait_phase,
+            params={
+                "command_name": "base_velocity",
+                "period": GAIT.period,
+                "cmd_threshold": GAIT.cmd_threshold
+            }
+        )
+
+        base_mass = ObsTerm(
+            func=mdp.body_mass,
+            params={"asset_cfg": SceneEntityCfg("robot", body_names=BODIES.base)},
+        )
+
+        # Action observations
+        actions = ObsTerm(func=mdp.last_action)
+
+        def __post_init__(self) -> None:
             self.enable_corruption = True
             self.concatenate_terms = True
+            self.history_length = 5
+            self.flatten_history_dim = True
 
-    # Observation groups:
-    critic: CriticCfg = CriticCfg()
+    # Critic Cfg
+    @configclass
+    class CriticCfg(PolicyCfg):
+        """Critic inherits everything actor sees + sim ground truth"""
+
+        base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
+        foot_friction = ObsTerm(func=mdp.foot_friction)
+
+        feet_contact_force = ObsTerm(
+            func=mdp.feet_contact_force,
+            params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=BODIES.feet)},
+        )
+
+        def __post_init__(self) -> None:
+            super().__post_init__()
+            self.enable_corruption = False  # This data is ground truth - no corruption
+
     policy: PolicyCfg = PolicyCfg()
-
-
-
+    critic: CriticCfg = CriticCfg()
 
 
 @configclass
-class BDXRRewards(RewardsCfg):
-    """Reward terms for the MDP."""
+class CommandsCfg:
+    """Configuration for velocity commands"""
 
-    termination_penalty = RewTerm(func=mdp.is_terminated, weight=-200.0)
-    air_time = RewTerm(
-        func=mdp.bipedal_air_time_reward,
-        weight=5.0,
-        params={
-            "mode_time": 0.3,
-            "velocity_threshold": 0.5,
-            "asset_cfg": SceneEntityCfg("robot"),
-            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_Foot"),
-        },
+    base_velocity = mdp.UniformVelocityCommandCfg(
+        asset_name="robot",
+        resampling_time_range=COMMANDS.resampling_time_range,
+        rel_standing_envs=COMMANDS.rel_standing_envs,
+        rel_heading_envs=COMMANDS.rel_heading_envs,
+        heading_command=True,
+        heading_control_stiffness=COMMANDS.heading_control_stiffness,
+        debug_vis=True,
+        ranges=mdp.UniformVelocityCommandCfg.Ranges(
+            lin_vel_x=COMMANDS.lin_vel_x,
+            lin_vel_y=COMMANDS.lin_vel_y,
+            ang_vel_z=COMMANDS.ang_vel_z,
+            heading=(-math.pi, math.pi),
+        ),
     )
-    # penalize ankle joint limits
-    dof_pos_limits = RewTerm(
-        func=mdp.joint_pos_limits,
-        weight=-1.0,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*_Ankle")},
-    )
-    # penalize deviation from default of the joints that are not essential for locomotion
-    joint_deviation_hip = RewTerm(
-        func=mdp.joint_deviation_l1,
-        weight=-1,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_Hip_Yaw", ".*_Hip_Roll"])},
-    )
-    foot_clearance = RewTerm(
-        func=mdp.foot_clearance_reward,
-        weight=2,
-        params={
-            "std": 0.05,
-            "tanh_mult": 2.0,
-            "target_height": 0.1,
-            "asset_cfg": SceneEntityCfg("robot", body_names=".*_Foot"),
-        },
-    )
-    foot_slip = RewTerm(
-        func=mdp.foot_slip_penalty,
-        weight=-0.5,
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=".*_Foot"),
-            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_Foot"),
-            "threshold": 1.0,
-        },
-    )
-    base_height_deviation = RewTerm(
-        func=mdp.base_height_l2,
-        weight=-2,  # Tune this weight as needed
-        params={
-            "target_height": 0.30846,
-            "asset_cfg": SceneEntityCfg(name="robot", body_names=["base_link"]),
-        },
-    )
-    joint_pos = RewTerm(
-        func=mdp.joint_position_penalty,
-        weight=-1,
-        params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
-            "stand_still_scale": 5.0,
-            "velocity_threshold": 0.5,
-        },
-    )
-
-
-
 
 
 @configclass
 class EventCfg:
     """Configuration for events."""
-    # startup
-    physics_material = EventTerm(
+
+    # Randomizes physical properties of the robot's rigid bodies, creating the
+    # emulation of walking on different surfaces
+    physics_props = EventTerm(
         func=mdp.randomize_rigid_body_material,
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-            "static_friction_range": (0.8, 0.8),
-            "dynamic_friction_range": (0.6, 0.6),
-            "restitution_range": (0.0, 0.0),
+            "static_friction_range": EVENTS.static_friction,
+            "dynamic_friction_range": EVENTS.dynamic_friction,
+            "restitution_range": EVENTS.restitution,
             "num_buckets": 64,
         },
     )
 
+    # Base mass variance for battery, compute, print variance and payload capacity
     add_base_mass = EventTerm(
         func=mdp.randomize_rigid_body_mass,
         mode="startup",
         params={
-            "asset_cfg": SceneEntityCfg("robot", body_names="base"),
-            "mass_distribution_params": (-0.2, 0.2),
+            "asset_cfg": SceneEntityCfg("robot", body_names=BODIES.base),
+            "mass_distribution_params": EVENTS.base_mass,
             "operation": "add",
+            "recompute_inertia": True,
         },
     )
-    base_external_force_torque = EventTerm(
-        func=mdp.apply_external_force_torque,
-        mode="reset",
+
+    # Randomize actuator gains at startup to emulate different servos and
+    # wear-and-tear for sim2real
+    actuator_gains = EventTerm(
+        func=mdp.randomize_actuator_gains,
+        mode="startup",
         params={
-            "asset_cfg": SceneEntityCfg("robot", body_names="base"),
-            "force_range": (0.0, 0.0),
-            "torque_range": (-0.0, 0.0),
+            "asset_cfg": SceneEntityCfg("robot", joint_names=JOINTS.legs),
+            "stiffness_distribution_params": EVENTS.actuator_gain,
+            "damping_distribution_params": EVENTS.actuator_gain,
+            "operation": "scale",
         },
     )
+
+    # reset
     reset_base = EventTerm(
         func=mdp.reset_root_state_uniform,
         mode="reset",
-        params={
-            "pose_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5), "yaw": (-3.14, 3.14)},
+        params={  # Randomize spawn position for generalization
+            "pose_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5), "yaw": (-math.pi, math.pi)},
             "velocity_range": {
-                "x": (0.0, 0.0),
-                "y": (0.0, 0.0),
-                "z": (0.0, 0.0),
-                "roll": (0.0, 0.0),
-                "pitch": (0.0, 0.0),
-                "yaw": (0.0, 0.0),
+                "x": (-0.1, 0.1), "y": (-0.1, 0.1), "z": (-0.1, 0.1),
+                "roll": (-0.2, 0.2), "pitch": (-0.2, 0.2), "yaw": (-0.2, 0.2),
             },
         },
     )
-#
-    reset_robot_joints = EventTerm(
+
+    reset_joints = EventTerm(
         func=mdp.reset_joints_by_scale,
         mode="reset",
-        params={
-            "position_range": (0.5, 1.5),
-            "velocity_range": (0.0, 0.0),
-        },
+        # Small insignificant starting pose variance
+        params={"position_range": EVENTS.reset_joint_scale, "velocity_range": (0.0, 0.0)},
     )
+
+    # Interval - apply a pushing velocity change to test recovery
     push_robot = EventTerm(
         func=mdp.push_by_setting_velocity,
         mode="interval",
-        interval_range_s=(10.0, 15.0),
-        params={"velocity_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5)}},
+        interval_range_s=EVENTS.push_interval_s,
+        params={
+            "velocity_range": {
+                "x": EVENTS.push_lin_vel,
+                "y": EVENTS.push_lin_vel,
+                "z": EVENTS.push_lin_z_vel,
+                "roll": EVENTS.push_ang_vel,
+                "pitch": EVENTS.push_ang_vel,
+            }
+        },
     )
+
+
+@configclass
+class RewardsCfg:
+    """Reward terms for the MDP."""
+
+    # Velocity tracking reward
+    track_lin_vel_xy = RewTerm(
+        func=mdp.track_lin_vel_xy_yaw_frame_exp,
+        weight=WEIGHTS.track_lin_vel_xy,
+        params={"command_name": "base_velocity", "std": REWARD_PARAMS.track_lin_vel_std},
+    )
+
+    # Angular velocity tracking reward
+    track_ang_vel_z = RewTerm(
+        func=mdp.track_ang_vel_z_world_exp,
+        weight=WEIGHTS.track_ang_vel_z,
+        params={"command_name": "base_velocity", "std": REWARD_PARAMS.track_ang_vel_std},
+    )
+
+    # Reward the robot for keeping one foot off the ground while moving for
+    # "threshold" amount of time
+    feet_air_time = RewTerm(
+        func=mdp.feet_air_time_positive_biped,
+        weight=WEIGHTS.feet_air_time,
+        params={
+            "command_name": "base_velocity",
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=BODIES.feet),
+            "threshold": GAIT.air_time_threshold,
+        },
+    )
+
+    # Minimum height penalty - penalize the robot for sagging too low to the ground
+    min_height = RewTerm(
+        func=mdp.base_height_floor_l2,
+        weight=WEIGHTS.min_height,
+        params={
+            "minimum_height": REWARD_PARAMS.min_base_height,
+            "asset_cfg": SceneEntityCfg("robot", body_names=BODIES.feet),
+        },
+    )
+
+    # Prevents the single foot skating that feet_air_time otherwise pays for
+    feet_slide = RewTerm(
+        func=mdp.feet_slide,
+        weight=WEIGHTS.feet_slide,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=BODIES.feet),
+            "asset_cfg": SceneEntityCfg("robot", body_names=BODIES.feet),
+        },
+    )
+
+    # Gait rhythm reward, scores foot contact against alternating pace schedule
+    gait_contact = RewTerm(
+        func=mdp.gait_contact_schedule,
+        weight=WEIGHTS.gait_contact,
+        params={
+            "command_name": "base_velocity",
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=BODIES.feet),
+            "period": GAIT.period,
+            "duty": GAIT.duty,
+            "cmd_threshold": GAIT.cmd_threshold,
+        },
+    )
+
+    # Swing shape tracking reward
+    foot_swing_height = RewTerm(
+        func=mdp.foot_swing_height_track,
+        weight=WEIGHTS.foot_swing_height,
+        params={
+            "command_name": "base_velocity",
+            "asset_cfg": SceneEntityCfg("robot", body_names=BODIES.feet),
+            "period": GAIT.period,
+            "duty": GAIT.duty,
+            "swing_height": GAIT.swing_height,
+            "ref_speed": GAIT.ref_speed,
+            "std": GAIT.swing_std,
+            "cmd_threshold": GAIT.cmd_threshold,
+        },
+    )
+
+    # Z Velocity Penalty - penalize the robot for moving up or down too quickly
+    z_vel = RewTerm(func=mdp.lin_vel_z_l2, weight=WEIGHTS.z_vel)
+
+    # Pitch Roll velocity Penalty
+    ang_vel_xy_l2 = RewTerm(func=mdp.ang_vel_xy_l2, weight=WEIGHTS.ang_vel_xy)
+
+    # Flat orientation (pitch roll position) penalty
+    flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=WEIGHTS.flat_orientation)
+
+    # Penalize joints in the last 10% of their RoM
+    joint_pos_limits = RewTerm(
+        func=mdp.joint_pos_limits,
+        weight=WEIGHTS.joint_pos_limits,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=JOINTS.legs)},
+    )
+
+    # Joint Torque Penalty - penalize the robot for straining servos in joints
+    joint_torques_l2 = RewTerm(
+        func=mdp.joint_torques_l2,
+        weight=WEIGHTS.joint_torques,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=JOINTS.legs)},
+    )
+
+    # Joint Acceleration Penalty - penalize the robot for straining servos in joints
+    joint_acc_l2 = RewTerm(
+        func=mdp.joint_acc_l2,
+        weight=WEIGHTS.joint_acc,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=JOINTS.legs)},
+    )
+
+    # Action Rate Penalty - keeps policy from changing motor commands too abruptly
+    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=WEIGHTS.action_rate)
+
+    # Penalizes the robot for moving when command is ~0 magnitude
+    stand_still = RewTerm(
+        func=mdp.stand_still_joint_deviation_l1,
+        weight=WEIGHTS.stand_still,
+        params={
+            "command_name": "base_velocity",
+            "asset_cfg": SceneEntityCfg("robot", joint_names=JOINTS.legs),
+        },
+    )
+
+    # Termination Penalty - penalizes the robot for death
+    termination_penalty = RewTerm(func=mdp.is_terminated, weight=WEIGHTS.termination)
+
+
 @configclass
 class TerminationsCfg:
     """Termination terms for the MDP."""
 
+    # (1) Time out
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
-    base_contact = DoneTerm(
+
+    # (2) Fall over terms
+    fell_over = DoneTerm(
         func=mdp.illegal_contact,
-        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names="base_link"), "threshold": 1.0},
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=BODIES.illegal_contact),
+            "threshold": 1.0,
+        },
+        time_out=False,
     )
 
+
+##
+# Environment configurations
+##
+
+
 @configclass
-class BdxrEnvCfg(LocomotionVelocityRoughEnvCfg):
-    commands: CommandsCfg = CommandsCfg()
-    rewards: BDXRRewards = BDXRRewards()
+class BdxrEnvCfg(ManagerBasedRLEnvCfg):
+    # Scene settings
+    scene: BdxrSceneCfg = BdxrSceneCfg(num_envs=4096, env_spacing=4.0)
+    # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
-    events: EventCfg = EventCfg()
-    terminations: TerminationsCfg = TerminationsCfg()
     actions: ActionsCfg = ActionsCfg()
+    events: EventCfg = EventCfg()
+    commands: CommandsCfg = CommandsCfg()
+    # MDP settings
+    rewards: RewardsCfg = RewardsCfg()
+    terminations: TerminationsCfg = TerminationsCfg()
 
-    def __post_init__(self):
-        # post init of parent
-        super().__post_init__()
-        # Scene
-        self.scene.robot = BDX_R_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/base_link"
-        
-        # CORRECT IMU CONFIGURATION
-        self.scene.imu = ImuCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/base_link",  
-            debug_vis=False,
-            offset=ImuCfg.OffsetCfg(  
-                pos=(-0.04718, 0.0663, 0.11094),    
-                rot=(1.0, 0.0, 0.0, 0.0),           
-            )
-        )
-# actions
-        self.actions.joint_pos.scale = 0.5
+    # Post initialization
+    def __post_init__(self) -> None:
+        """Post initialization."""
+        # general settings
+        # 1/200 with decimation 4 gives a 50 Hz policy, the rate the hardware control
+        # loop targets. action_rate_l2 is tuned against that step size, so changing it
+        # after training invalidates the policy
+        self.decimation = 4
+        self.sim.dt = 1 / 200
+        self.episode_length_s = 20.0
+        # viewer settings
+        self.viewer.eye = (8.0, 0.0, 5.0)
+        # simulation settings
+        self.sim.render_interval = self.decimation
 
-        # events
-        self.events.push_robot.params["velocity_range"] = {"x": (0.0, 0.0), "y": (0.0, 0.0)}
-        #self.events.push_robot = None
-        self.rewards.feet_air_time = None 
-        self.events.add_base_mass.params["asset_cfg"].body_names = ["base_link"]
-        self.events.add_base_mass.params["mass_distribution_params"] = (-0.5, 0.5)
-        self.events.reset_robot_joints.params["position_range"] = (0.8, 1.2)
-        self.events.base_external_force_torque.params["asset_cfg"].body_names = ["base_link"]
-        self.events.physics_material.params["static_friction_range"] = (0.1, 2)
-        self.events.physics_material.params["dynamic_friction_range"] = (0.1, 2)
-        self.events.physics_material.params["asset_cfg"].body_names = ".*_Foot"
-        self.scene.terrain = TerrainImporterCfg(
-            prim_path="/World/ground",
-            terrain_type="generator",
-            terrain_generator=COBBLESTONE_ROAD_CFG,
-            max_init_terrain_level=COBBLESTONE_ROAD_CFG.num_rows - 1,
-            collision_group=-1,
-            physics_material=sim_utils.RigidBodyMaterialCfg(
-                friction_combine_mode="multiply",
-                restitution_combine_mode="multiply",
-                static_friction=1.0,
-                dynamic_friction=1.0,
-            ),
-            visual_material=sim_utils.MdlFileCfg(
-                mdl_path=f"{ISAACLAB_NUCLEUS_DIR}/Materials/TilesMarbleSpiderWhiteBrickBondHoned/TilesMarbleSpiderWhiteBrickBondHoned.mdl",
-                project_uvw=True,
-                texture_scale=(0.25, 0.25),
-            ),
-            debug_vis=False,
-        )
+        # PhysX settings to make sure GPU does not run out of memory
+        self.sim.physx.gpu_collision_stack_size = 2**28  # 256 MB
+        self.sim.physx.gpu_max_rigid_patch_count = 10 * 2**15  # default 5 * 2**15
 
-        #self.events.randomize_imu_mount = EventTerm(
-        #    func=randomize_imu_mount,
-        #    mode="reset",
-        #    params={
-        #        "sensor_cfg": SceneEntityCfg("imu"),
-        #        "pos_range": {
-        #            "x": (-0.05, 0.05),
-        #            "y": (-0.05, 0.05),
-        #            "z": (-0.05, 0.05),
-        #        },
-        #        "rot_range": {
-        #            "roll": (-0.1, 0.1),
-        #            "pitch": (-0.1, 0.1),
-        #            "yaw": (-0.1, 0.1),
-        #        },
-        #    },
-        #)
-        
-
-        self.events.reset_base.params = {
-            "pose_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5), "yaw": (-3.14, 3.14)},
-            "velocity_range": {
-                "x": (0.0, 0.0),
-                "y": (0.0, 0.0),
-                "z": (0.0, 0.0),
-                "roll": (0.0, 0.0),
-                "pitch": (0.0, 0.0),
-                "yaw": (0.0, 0.0),
-            },
-        }
-
-        # terminations
-        self.terminations.base_contact.params["sensor_cfg"].body_names = [
-            "base_link",
-        ]
-
-        # rewards
-        self.rewards.undesired_contacts = None
-        self.rewards.dof_torques_l2.weight = -5.0e-6
-        self.rewards.track_lin_vel_xy_exp.weight = 5.0
-        self.rewards.track_ang_vel_z_exp.weight = 5.0
-        self.rewards.action_rate_l2.weight =-0.05     
-        self.rewards.dof_acc_l2.weight =-1.25e-7      
-        self.rewards.flat_orientation_l2.weight = -2
-
-        # Walk
-        self.commands.base_velocity.ranges.lin_vel_x = (-0.4,0.7)
-        self.commands.base_velocity.ranges.lin_vel_y = (-0.4, 0.4)
-        self.commands.base_velocity.ranges.ang_vel_z = (-1, 1)
+        # Make sure sim and contact forces have matching time deltas
+        if self.scene.contact_forces is not None:
+            self.scene.contact_forces.update_period = self.sim.dt
 
 
 @configclass
 class BdxrEnvCfg_PLAY(BdxrEnvCfg):
+    """Small, cheap variant for visual inspection. Physics identical -- only scene size differs."""
+
     def __post_init__(self) -> None:
-        # post init of parent
         super().__post_init__()
 
-        # make a smaller scene for play
-        self.scene.num_envs = 50
-        self.scene.env_spacing = 2.5
-        # spawn the robot randomly in the grid (instead of their terrain levels)
-        self.scene.terrain.max_init_terrain_level = None
+        self.scene.num_envs = 16
+        self.scene.env_spacing = 3.0
 
-        # reduce the number of terrains to save memory
-        if self.scene.terrain.terrain_generator is not None:
-            self.scene.terrain.terrain_generator.num_rows = 5
-            self.scene.terrain.terrain_generator.num_cols = 5
-            self.scene.terrain.terrain_generator.curriculum = False
+        # Deep copy so shrinking the play grid does not mutate the shared training cfg
+        tg = copy.deepcopy(self.scene.terrain.terrain_generator)
+        tg.num_rows = 5
+        tg.num_cols = 5
+        self.scene.terrain.terrain_generator = tg
 
-        # disable randomization for play
+        # Observation noise exists for training robustness; it only makes visual
+        # debugging harder to interpret
         self.observations.policy.enable_corruption = False
-        self.commands.base_velocity.ranges.lin_vel_x = (0.1, 0.7)
-        self.commands.base_velocity.ranges.lin_vel_y = (0.00, 0.0)
-        self.commands.base_velocity.ranges.ang_vel_z = (0.0, 0.0)
-        # remove random pushing event

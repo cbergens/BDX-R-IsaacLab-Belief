@@ -1,22 +1,27 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Configuration for the Disney BD-X (BDX-R) robot.
+
+* :obj:`BDX_R_CFG`: BDX-R with delayed PD actuators on the legs.
+"""
+
 from pathlib import Path
+
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg, DelayedPDActuatorCfg # noqa: F401
+from isaaclab.actuators import DelayedPDActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 
-##
-# Configuration
-##
-
-# Dynamically get the directory where this bdxr.py script is located
-BDXR_ASSETS_DIR = Path(__file__).resolve().parent
+BDXR_URDF_PATH = Path(__file__).resolve().parents[2] / "data/Robots/BDXR/URDF.urdf"
 
 BDX_R_CFG = ArticulationCfg(
     spawn=sim_utils.UrdfFileCfg(
         fix_base=False,
         merge_fixed_joints=True,
         replace_cylinders_with_capsules=False,
-        # Now it properly points to the URDF.urdf in the exact same directory
-        asset_path=str(Path(__file__).resolve().parents[2] / "data/Robots/BDXR/URDF.urdf"),
+        asset_path=str(BDXR_URDF_PATH),
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
@@ -27,16 +32,36 @@ BDX_R_CFG = ArticulationCfg(
             max_angular_velocity=1000.0,
             max_depenetration_velocity=1.0,
         ),
+
+        # Self-collision disabled for step time. The property it protects -- no gaits
+        # where the legs pass through each other -- is recovered by terminating on
+        # upper-leg contact instead
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False, solver_position_iteration_count=4, solver_velocity_iteration_count=0
+            enabled_self_collisions=False,
+            solver_position_iteration_count=4,
+            solver_velocity_iteration_count=0,
         ),
+
+        # Gains come from the actuator model below, not the importer
         joint_drive=sim_utils.UrdfConverterCfg.JointDriveCfg(
             gains=sim_utils.UrdfConverterCfg.JointDriveCfg.PDGainsCfg(stiffness=0, damping=0)
         ),
     ),
+
     init_state=ArticulationCfg.InitialStateCfg(
+        # Foot pads bottom out 0.330 m below base_link at the pose below
         pos=(0.0, 0.0, 0.33),
+
+        # The URDF zero pose is already a stance: thigh raked back 44 deg, shank forward
+        # 19 deg, whole-body CoM inside the foot support polygon. No crouch to add
+        joint_pos={".*": 0.0},
+        joint_vel={".*": 0.0},
     ),
+
+    # Soften the joint limit to prevent hard stops and jerk. Creates opportunity for
+    # penalty in last 10% RoM
+    soft_joint_pos_limit_factor=0.9,
+
     actuators={
         "legs": DelayedPDActuatorCfg(
             joint_names_expr=[".*_Hip_Yaw", ".*_Hip_Roll", ".*_Hip_Pitch", ".*_Knee", ".*_Ankle"],
@@ -76,9 +101,8 @@ BDX_R_CFG = ArticulationCfg(
                 ".*_Ankle": 37.699,
             },
             min_delay=0,
-            max_delay=0
+            max_delay=0,
         ),
     },
-    soft_joint_pos_limit_factor=0.95,
 )
-"""Configuration for the Disney BD-X robot with implicit actuator model."""
+"""Configuration for the Disney BD-X robot with delayed PD actuator model."""

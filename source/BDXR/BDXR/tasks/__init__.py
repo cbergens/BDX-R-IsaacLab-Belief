@@ -6,7 +6,7 @@
 """Package containing task implementations for the extension."""
 
 ##
-# Register Gym environments.
+# Register Gym environments
 ##
 
 from isaaclab_tasks.utils import import_packages
