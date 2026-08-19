@@ -33,7 +33,7 @@ class RateLimitedJointPositionAction(JointPositionAction):
         super().__init__(cfg, env)
         # Seed at the default pose -- the same value _offset resolves to when
         # use_default_offset is True, so step 0 starts with zero rate demand
-        self._last_target = self._asset.data.default_joint_pos[:, self._joint_ids].clone()
+        self._last_target = self._asset.data.default_joint_pos.torch[:, self._joint_ids].clone()
 
     def process_actions(self, actions: torch.Tensor):
         # Runs once per policy step, which is the rate the limit is defined against;
@@ -54,7 +54,7 @@ class RateLimitedJointPositionAction(JointPositionAction):
         super().reset(env_ids)
         if env_ids is None:
             env_ids = slice(None)
-        self._last_target[env_ids] = self._asset.data.default_joint_pos[env_ids][:, self._joint_ids]
+        self._last_target[env_ids] = self._asset.data.default_joint_pos.torch[env_ids][:, self._joint_ids]
 
 
 @configclass

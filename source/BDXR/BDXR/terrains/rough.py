@@ -18,6 +18,14 @@ BDXR_ROUGH_CFG = TerrainGeneratorCfg(
     border_width=14.0,
     num_rows=8,
     num_cols=10,
+
+    # Columns become terrain type and rows become difficulty, so every type is
+    # guaranteed present instead of left to a per-cell random draw
+    curriculum=True,
+
+    # NOTE: max_init_terrain_level belongs to TerrainImporterCfg, not the generator.
+    # It is set on the importer in bdxr_env_cfg.py, where it spreads spawns over
+    # every difficulty row instead of pinning all envs to row 0.
     horizontal_scale=0.07,
     vertical_scale=0.003,
     slope_threshold=0.75,

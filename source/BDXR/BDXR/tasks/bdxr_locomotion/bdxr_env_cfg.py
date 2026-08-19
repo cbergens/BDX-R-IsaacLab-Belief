@@ -16,11 +16,13 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import ContactSensorCfg, ImuCfg
+from isaaclab.sim import SimulationCfg
+from isaaclab.sensors import ContactSensorCfg, ImuCfg, PvaCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.noise import NoiseModelWithAdditiveBiasCfg
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
+from isaaclab_physx.physics import PhysxCfg
 
 from . import mdp
 from .config import ACTION, BODIES, COMMANDS, EVENTS, GAIT, JOINTS, OBS_NOISE, REWARD_PARAMS, WEIGHTS
@@ -47,7 +49,8 @@ class BdxrSceneCfg(InteractiveSceneCfg):
         prim_path="/World/ground",
         terrain_type="generator",
         terrain_generator=BDXR_ROUGH_CFG,
-        max_init_terrain_level=0,
+        # None spreads spawns over every difficulty row; 0 pinned all envs to row 0
+        max_init_terrain_level=None,
         collision_group=-1,
         physics_material=sim_utils.RigidBodyMaterialCfg(
             friction_combine_mode="multiply",
@@ -69,15 +72,21 @@ class BdxrSceneCfg(InteractiveSceneCfg):
     )
 
     imu = ImuCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/base_link",
+        prim_path="{ENV_REGEX_NS}/Robot/Geometry/base_link",
         offset=ImuCfg.OffsetCfg(
             # The URDF's imu link, forward-kinematicked into base_link. The fixed joints
             # along the way are all identity in rotation, so the frames stay aligned
             pos=(-0.13972, 0.0209, 0.08864),
-            rot=(1.0, 0.0, 0.0, 0.0),  # (w, x, y, z)
+            rot=(0.0, 0.0, 0.0, 1.0),  # (x, y, z, w)
         ),
-        # Default makes lin_acc_b read ~+1g upward at rest, matching a real accelerometer
-        gravity_bias=(0.0, 0.0, 9.81),
+    )
+
+    pva = PvaCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/Geometry/base_link",
+        offset=PvaCfg.OffsetCfg(
+            pos=(-0.13972, 0.0209, 0.08864),
+            rot=(0.0, 0.0, 0.0, 1.0),  # (x, y, z, w)
+        )
     )
 
     # lights
@@ -122,8 +131,8 @@ class ObservationsCfg:
             noise=Unoise(n_min=-OBS_NOISE.imu_ang_vel, n_max=OBS_NOISE.imu_ang_vel),
         )
 
-        imu_projected_gravity = ObsTerm(
-            func=mdp.imu_projected_gravity,
+        pva_projected_gravity = ObsTerm(
+            func=mdp.pva_projected_gravity,
             noise=NoiseModelWithAdditiveBiasCfg(
                 noise_cfg=Unoise(n_min=-OBS_NOISE.imu_gravity, n_max=OBS_NOISE.imu_gravity),
                 bias_noise_cfg=Unoise(n_min=-OBS_NOISE.imu_gravity_bias, n_max=OBS_NOISE.imu_gravity_bias),
@@ -464,6 +473,13 @@ class BdxrEnvCfg(ManagerBasedRLEnvCfg):
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
+    # Simulation and physics settings
+    sim: SimulationCfg = SimulationCfg(
+        physics=PhysxCfg(
+            gpu_collision_stack_size=2**28,  #256 MB
+            gpu_max_rigid_patch_count=10 * 2**15,
+        )
+    )
 
     # Post initialization
     def __post_init__(self) -> None:
@@ -479,11 +495,6 @@ class BdxrEnvCfg(ManagerBasedRLEnvCfg):
         self.viewer.eye = (8.0, 0.0, 5.0)
         # simulation settings
         self.sim.render_interval = self.decimation
-
-        # PhysX settings to make sure GPU does not run out of memory
-        self.sim.physx.gpu_collision_stack_size = 2**28  # 256 MB
-        self.sim.physx.gpu_max_rigid_patch_count = 10 * 2**15  # default 5 * 2**15
-
         # Make sure sim and contact forces have matching time deltas
         if self.scene.contact_forces is not None:
             self.scene.contact_forces.update_period = self.sim.dt
@@ -496,13 +507,13 @@ class BdxrEnvCfg_PLAY(BdxrEnvCfg):
     def __post_init__(self) -> None:
         super().__post_init__()
 
-        self.scene.num_envs = 16
+        self.scene.num_envs = 80
         self.scene.env_spacing = 3.0
 
         # Deep copy so shrinking the play grid does not mutate the shared training cfg
         tg = copy.deepcopy(self.scene.terrain.terrain_generator)
-        tg.num_rows = 5
-        tg.num_cols = 5
+        tg.num_rows = 3
+        tg.num_cols = 16
         self.scene.terrain.terrain_generator = tg
 
         # Observation noise exists for training robustness; it only makes visual

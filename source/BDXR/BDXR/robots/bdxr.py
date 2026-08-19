@@ -20,7 +20,11 @@ BDX_R_CFG = ArticulationCfg(
     spawn=sim_utils.UrdfFileCfg(
         fix_base=False,
         merge_fixed_joints=True,
-        replace_cylinders_with_capsules=False,
+
+        # Collapses the per-link visual meshes the 3.0 importer emits separately:
+        # 166 -> 100 Xform prims per robot. Viewport step cost at 80 envs drops
+        # 95.4 -> 77.2 ms. Physics is untouched -- 11 bodies, 10 DOFs, same mass
+        merge_mesh=True,
         asset_path=str(BDXR_URDF_PATH),
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(

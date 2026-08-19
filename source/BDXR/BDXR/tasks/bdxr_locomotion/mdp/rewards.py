@@ -37,8 +37,8 @@ def base_height_floor_l2(
     asset: Articulation = env.scene[asset_cfg.name]
 
     # Minimum takes position of lowest foot
-    foot_z = asset.data.body_pos_w[:, asset_cfg.body_ids, 2].min(dim=1)[0]
-    height_offset = asset.data.root_pos_w[:, 2] - foot_z
+    foot_z = asset.data.body_pos_w.torch[:, asset_cfg.body_ids, 2].min(dim=1)[0]
+    height_offset = asset.data.root_pos_w.torch[:, 2] - foot_z
 
     # Quadratic makes it softer initially, then sharper as the robot sags lower
     return torch.clamp(minimum_height - height_offset, min=0.0).square()
@@ -62,7 +62,7 @@ def gait_contact_schedule(
 
     # Max over the sensor history debounces single-frame contact dropouts
     sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
-    forces = sensor.data.net_forces_w_history[:, :, sensor_cfg.body_ids, :]
+    forces = sensor.data.net_forces_w_history.torch[:, :, sensor_cfg.body_ids, :]
     have = (forces.norm(dim=-1).max(dim=1)[0] > force_threshold).float()
 
     # Product, not mean: under a mean, standing on both feet scores 0.5 for free
@@ -102,7 +102,7 @@ def foot_swing_height_track(
 
     # Height above the lower foot, so this stays terrain-agnostic without a ray-caster
     asset: Articulation = env.scene[asset_cfg.name]
-    foot_z = asset.data.body_pos_w[:, asset_cfg.body_ids, 2]
+    foot_z = asset.data.body_pos_w.torch[:, asset_cfg.body_ids, 2]
     have = foot_z - foot_z.min(dim=1, keepdim=True)[0]
 
     # Gaussian falloff, std leaves gradient
