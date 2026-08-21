@@ -1,6 +1,12 @@
-# BDX-R: A Journey in Bipedal Robotic Locomotion
+# BDX-R IsaacLab Teacher-Student Belief-State
 
-This repository chronicles the development of BDX-R, a personal endeavor to create a bipedal robot inspired by Disney's BDX droids. The primary goal is to achieve stable walking and successfully bridge the simulation-to-reality (Sim2Real) gap using reinforcement learning.
+This repository has been forked from [KaydenKnapik](https://github.com/KaydenKnapik)'s [BDX-R-IsaacLab repository](https://github.com/BDX-R/BDX-R-IsaacLab). Huge thanks to him for the help he's offered throughout this project.
+
+## Overview
+
+This repository covers the development of BDX-R, a personal/experimental endeavor to create a teacher-student distilled bipedal robot inspired by Disney's BDX droids. The primary goal is to validate teacher-student distillation in bipedal policies and implement a belief state, as cited in ETH Zurich and Intel's research paper, [here](https://arxiv.org/pdf/2201.08117).
+
+## Some images from Kayden's README:
 
 | BDX-R in Isaac Lab Simulation | BDX-R Physical Prototype|
 | :---: | :---: |
@@ -10,60 +16,22 @@ This repository chronicles the development of BDX-R, a personal endeavor to crea
 
 ## 🎯 Current Focus: Walking and Sim2Real
 
-The project is currently in its initial phase, with the core focus on mastering bipedal locomotion. The immediate objectives are:
+Currently, a sim-robust policy exists; however, our next objectives are the following:
 
--   **Achieve Stable Walking:** Train a robust walking policy using reinforcement learning.
--   **Cross the Sim2Real Gap:** Successfully transfer the policy trained in a simulated environment to the physical robot.
+-   **Update URDF kinematics:** Pull the more up-to-date version of the robot from Kayden's mujoco repository, and reconfigure it in Isaac Lab.
+-   **Unlock Head and Neck Joints:** This could be a result of the above objective; however, currently, the robot's head and neck joints are static.
+-   **Begin Exploring Student-Teacher Distillation:** Begin researching how to implement imitation learning between two models in Isaac Lab. Train a privileged teacher model.
+-   **Begin prototyping physical components:** 3D-print body parts, buy Jetson Orin Nano, and begin exploring potential implementations for additional sensors to open foundation-model opportunities.
 
 *At this stage, the project is concentrated on the fundamental mechanics of the body's movement. Expressiveness and the integration of a head are future goals to be explored after mastering stable locomotion.*
 
----
 
-## 🛠️ Hardware
-
-The BDX-R is built with a focus on high-performance components that are accessible to the robotics community. The entire build is being developed with a target budget under **$3,000**.
-
--   **Robstride Motors:** These motors provide the necessary torque and precision for dynamic and controlled leg movements.
--   **NVIDIA Jetson Orin Nano:** Serving as the onboard computer, the Jetson Orin Nano has the computational power required to run the trained RL policy in real-time.
-
----
-
-## 🤖 Software and Training: Reinforcement Learning with Isaac Lab
-
-The robot's ability to walk is being developed through reinforcement learning within the **NVIDIA Isaac Lab** simulation environment.
-
-A policy is trained in this virtual space, allowing the BDX-R to learn and adapt its movements to maintain balance and achieve forward motion. This process is critical for developing a robust control system before deploying it on the physical hardware.
-
----
-
-## 🚀 Installation
-
-To install the necessary packages for this project, after cloning the repo, run the following command:
 
 ```bash
-python -m pip install -e source/BDXR
-```
-
-```bash
-cd BDX-R-Isaaclab/scripts/rsl_rl/
-```
-
-```bash
-python train.py --task=Bdxr-Walk-v0 --headless
-
-```
-
-```bash
-python play.py --task=Bdxr-Walk-Play-v0 --num_envs 100
+python play.py --task=Bdxr-Walk-Play-v0 --num_envs 100 --device cpu
 
 ```
 
 ## 🙏 Community and Acknowledgements
 
-This project is a personal learning journey and would not have been possible without the guidance and inspiration from the wider robotics community. A special thank you to:
-
--   [louislelay](https://github.com/louislelay)
--   [skelmir](https://github.com/rimim)
--   [Kscalelabs](https://github.com/Kscalelabs)
-
-Their expertise and willingness to share knowledge have been invaluable.
+A special thank you to [KaydenKnapik](https://github.com/KaydenKnapik). His willingness to make this project so accessible to the robotics community is incredible, and it serves as a segue into reinforcement learning and physical AI for myself, and I'm sure, many others.
