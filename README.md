@@ -14,6 +14,12 @@ This repository covers the development of BDX-R, a personal/experimental endeavo
 
 ---
 
+## Current Policy:
+
+_BDX-R moving down stairs with a disturbance:_
+
+[BDX-R Down Stairs with Disturbance](https://github.com/user-attachments/assets/bd6b44b5-2557-4bed-a456-952228aff659)
+
 ## 🎯 Current Focus: Walking and Sim2Real
 
 Currently, a sim-robust policy exists; however, our next objectives are the following:
