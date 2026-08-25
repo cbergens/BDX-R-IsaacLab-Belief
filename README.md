@@ -24,7 +24,7 @@ _BDX-R moving down stairs with a disturbance:_
 
 Currently, a sim-robust policy exists; however, our next objectives are the following:
 
--   **Update URDF kinematics:** Pull the more up-to-date version of the robot from Kayden's mujoco repository, and reconfigure it in Isaac Lab.
+-   ~~**Update URDF kinematics:** Pull the more up-to-date version of the robot from Kayden's mujoco repository, and reconfigure it in Isaac Lab.~~
 -   **Unlock Head and Neck Joints:** This could be a result of the above objective; however, currently, the robot's head and neck joints are static.
 -   **Begin Exploring Student-Teacher Distillation:** Begin researching how to implement imitation learning between two models in Isaac Lab. Train a privileged teacher model.
 -   **Begin prototyping physical components:** 3D-print body parts, buy Jetson Orin Nano, and begin exploring potential implementations for additional sensors to open foundation-model opportunities.
