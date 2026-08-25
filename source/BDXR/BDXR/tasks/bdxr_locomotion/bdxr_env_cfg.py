@@ -76,7 +76,7 @@ class BdxrSceneCfg(InteractiveSceneCfg):
         offset=ImuCfg.OffsetCfg(
             # The URDF's imu link, forward-kinematicked into base_link. The fixed joints
             # along the way are all identity in rotation, so the frames stay aligned
-            pos=(-0.13972, 0.0209, 0.08864),
+            pos=(-0.02397, 0.02095, 0.17390),
             rot=(0.0, 0.0, 0.0, 1.0),  # (x, y, z, w)
         ),
     )
@@ -84,7 +84,7 @@ class BdxrSceneCfg(InteractiveSceneCfg):
     pva = PvaCfg(
         prim_path="{ENV_REGEX_NS}/Robot/Geometry/base_link",
         offset=PvaCfg.OffsetCfg(
-            pos=(-0.13972, 0.0209, 0.08864),
+            pos=(-0.02397, 0.02095, 0.17390),
             rot=(0.0, 0.0, 0.0, 1.0),  # (x, y, z, w)
         )
     )

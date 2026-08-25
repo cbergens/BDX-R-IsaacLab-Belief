@@ -14,7 +14,47 @@ import isaaclab.sim as sim_utils
 from isaaclab.actuators import DelayedPDActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 
+import torch
+
 BDXR_URDF_PATH = Path(__file__).resolve().parents[2] / "data/Robots/BDXR/URDF.urdf"
+
+
+# Taken from:
+# https://github.com/BDX-R/BDX-R-MjLab/blob/main/src/bdx_r_mjlab/robots/bdxr/bdxr_constants.py#L52
+class MotorConstants:
+
+    # RobStride 02 Motor constants
+    class RobStride02:
+        armature = 0.0142
+        kp = 16.581
+        kd = 1.056
+        max_vel = 37.699
+        max_eff = 10.9
+
+    # RobStride 03 Motor constants
+    class RobStride03:
+        armature = 0.06
+        kp = 78.957
+        kd = 5.027
+        max_vel = 18.849
+        max_eff = 42.0
+
+    # RobStride 05 Motor constants (formuliac, awaiting chirp testing)
+    class RobStride05:
+        _natural_frequency = 10 * 2.0 * torch.math.pi # Private 10 Hz value
+        _damping_ratio = 2.0
+        # The head hanging off Head_Pitch is 0.0229 kg.m2
+        _load_inertia = 0.0229
+
+        armature = 7e-4
+        kp = _load_inertia * _natural_frequency**2
+        kd = 2.0 * _damping_ratio * _load_inertia * _natural_frequency
+        max_vel = 45
+        max_eff = 4.2
+
+    # TODO: Set true control loop latency. Currently ~15ms
+    min_delay = 3
+    max_delay = 3
 
 BDX_R_CFG = ArticulationCfg(
     spawn=sim_utils.UrdfFileCfg(
@@ -23,7 +63,7 @@ BDX_R_CFG = ArticulationCfg(
 
         # Collapses the per-link visual meshes the 3.0 importer emits separately:
         # 166 -> 100 Xform prims per robot. Viewport step cost at 80 envs drops
-        # 95.4 -> 77.2 ms. Physics is untouched -- 11 bodies, 10 DOFs, same mass
+        # 95.4 -> 77.2 ms. Physics is untouched -- 15 bodies, 14 DOFs, same mass
         merge_mesh=True,
         asset_path=str(BDXR_URDF_PATH),
         activate_contact_sensors=True,
@@ -53,8 +93,8 @@ BDX_R_CFG = ArticulationCfg(
     ),
 
     init_state=ArticulationCfg.InitialStateCfg(
-        # Foot pads bottom out 0.330 m below base_link at the pose below
-        pos=(0.0, 0.0, 0.33),
+        # Foot pads bottom out 0.2445 m below base_link at the pose below
+        pos=(0.0, 0.0, 0.2445),
 
         # The URDF zero pose is already a stance: thigh raked back 44 deg, shank forward
         # 19 deg, whole-body CoM inside the foot support polygon. No crouch to add
@@ -67,46 +107,74 @@ BDX_R_CFG = ArticulationCfg(
     soft_joint_pos_limit_factor=0.9,
 
     actuators={
+
         "legs": DelayedPDActuatorCfg(
             joint_names_expr=[".*_Hip_Yaw", ".*_Hip_Roll", ".*_Hip_Pitch", ".*_Knee", ".*_Ankle"],
             stiffness={
-                ".*_Hip_Yaw": 78.957,
-                ".*_Hip_Roll": 78.957,
-                ".*_Hip_Pitch": 78.957,
-                ".*_Knee": 78.957,
-                ".*_Ankle": 16.581,
+                ".*_Hip_Yaw": MotorConstants.RobStride03.kp,
+                ".*_Hip_Roll": MotorConstants.RobStride03.kp,
+                ".*_Hip_Pitch": MotorConstants.RobStride03.kp,
+                ".*_Knee": MotorConstants.RobStride03.kp,
+                ".*_Ankle": MotorConstants.RobStride02.kp,
             },
             damping={
-                ".*_Hip_Yaw": 5.027,
-                ".*_Hip_Roll": 5.027,
-                ".*_Hip_Pitch": 5.027,
-                ".*_Knee": 5.027,
-                ".*_Ankle": 1.056,
+                ".*_Hip_Yaw": MotorConstants.RobStride03.kd,
+                ".*_Hip_Roll": MotorConstants.RobStride03.kd,
+                ".*_Hip_Pitch": MotorConstants.RobStride03.kd,
+                ".*_Knee": MotorConstants.RobStride03.kd,
+                ".*_Ankle": MotorConstants.RobStride02.kd,
             },
             armature={
-                ".*_Hip_Yaw": 0.02,
-                ".*_Hip_Roll": 0.02,
-                ".*_Hip_Pitch": 0.02,
-                ".*_Knee": 0.02,
-                ".*_Ankle": 0.0042,
+                ".*_Hip_Yaw": MotorConstants.RobStride03.armature,
+                ".*_Hip_Roll": MotorConstants.RobStride03.armature,
+                ".*_Hip_Pitch": MotorConstants.RobStride03.armature,
+                ".*_Knee": MotorConstants.RobStride03.armature,
+                ".*_Ankle": MotorConstants.RobStride02.armature,
             },
             effort_limit_sim={
-                ".*_Hip_Yaw": 42.0,
-                ".*_Hip_Roll": 42.0,
-                ".*_Hip_Pitch": 42.0,
-                ".*_Knee": 42.0,
-                ".*_Ankle": 11.9,
+                ".*_Hip_Yaw": MotorConstants.RobStride03.max_eff,
+                ".*_Hip_Roll": MotorConstants.RobStride03.max_eff,
+                ".*_Hip_Pitch": MotorConstants.RobStride03.max_eff,
+                ".*_Knee": MotorConstants.RobStride03.max_eff,
+                ".*_Ankle": MotorConstants.RobStride02.max_eff,
             },
             velocity_limit_sim={
-                ".*_Hip_Yaw": 18.849,
-                ".*_Hip_Roll": 18.849,
-                ".*_Hip_Pitch": 18.849,
-                ".*_Knee": 18.849,
-                ".*_Ankle": 37.699,
+                ".*_Hip_Yaw": MotorConstants.RobStride03.max_vel,
+                ".*_Hip_Roll": MotorConstants.RobStride03.max_vel,
+                ".*_Hip_Pitch": MotorConstants.RobStride03.max_vel,
+                ".*_Knee": MotorConstants.RobStride03.max_vel,
+                ".*_Ankle": MotorConstants.RobStride02.max_vel,
             },
-            min_delay=0,
-            max_delay=0,
+            min_delay=MotorConstants.min_delay,
+            max_delay=MotorConstants.max_delay,
         ),
+
+        "head": DelayedPDActuatorCfg (
+            joint_names_expr=["Head_.*", "Neck_.*"],
+            stiffness={
+                "Head_.*": MotorConstants.RobStride05.kp,
+                "Neck_.*": MotorConstants.RobStride02.kp
+            },
+            damping={
+                "Head_.*": MotorConstants.RobStride05.kd,
+                "Neck_.*": MotorConstants.RobStride02.kd
+            },
+            armature={
+                "Head_.*": MotorConstants.RobStride05.armature,
+                "Neck_.*": MotorConstants.RobStride02.armature
+            },
+            effort_limit_sim={
+                "Head_.*": MotorConstants.RobStride05.max_eff,
+                "Neck_.*": MotorConstants.RobStride02.max_eff,
+            },
+            velocity_limit_sim={
+                "Head_.*": MotorConstants.RobStride05.max_vel,
+                "Neck_.*": MotorConstants.RobStride02.max_vel
+            },
+            min_delay=MotorConstants.min_delay,
+            max_delay=MotorConstants.max_delay,
+
+        )
     },
 )
 """Configuration for the Disney BD-X robot with delayed PD actuator model."""

@@ -14,7 +14,7 @@ from isaaclab.utils import configclass
 # Every constant here is derived from the Open Duck Mini v2 by Froude similarity. The
 # length scale is CoM height above the contact plane at the nominal stance -- the
 # inverted-pendulum length -- measured by FK on both URDFs: duck 0.2161 m, BDX-R
-# 0.3044 m, so L = 1.408 and sqrt(L) = 1.187. Lengths scale by L, times and linear
+# 0.3029 m, so L = 1.402 and sqrt(L) = 1.184. Lengths scale by L, times and linear
 # velocities by sqrt(L), angular velocities by its inverse
 
 
@@ -34,8 +34,7 @@ class JointCfg:
         "Left_Ankle",     "Right_Ankle",
     ]
 
-    # Present in the URDF but exported as type="fixed", so they are not DOFs and cannot
-    # be addressed. Listed for the head-control work; nothing here may reference them
+    # Held at default by their own actuator group in bdxr.py; not in the action space
     head: list[str] = ["Neck_Pitch", "Head_Pitch", "Head_Yaw", "Head_Roll"]
 
 
@@ -131,9 +130,8 @@ class RewardWeightCfg:
     flat_orientation: float = -0.2
     joint_pos_limits: float = -3.0
 
-    # Applied torque scales with m*g*L, 12.1x here, and the term squares it. The duck's
-    # -0.002 would otherwise swamp every tracking reward
-    joint_torques: float = -1.4e-5
+    # Applied torque scales with m*g*L
+    joint_torques: float = -1.2e-5
 
     # Joint acceleration scales with the inverse length ratio, squared by the term
     joint_acc: float = -1.25e-7
@@ -147,9 +145,9 @@ class RewardWeightCfg:
 class RewardParamCfg:
     """Non-weight reward parameters."""
 
-    # Root to lowest foot body at the URDF zero pose is 0.2489 m, and the duck sets its
+    # Root to lowest foot body at the URDF zero pose is 0.1636 m, and the duck sets its
     # floor at 98.9% of the same measurement
-    min_base_height: float = 0.246
+    min_base_height: float = 0.162
     """Trunk height above the lower foot below which the sag penalty engages."""
 
     track_lin_vel_std: float = 0.2
@@ -183,7 +181,7 @@ class EventRangeCfg:
     restitution: tuple[float, float] = (0.0, 0.1)
 
     # The duck's -0.05/+0.20 kg on a 2.06 kg robot, held at the same fraction of mass
-    base_mass: tuple[float, float] = (-0.43, 1.72)
+    base_mass: tuple[float, float] = (-0.465, 1.862)
 
     # +-20% on the servos, for wear and unit-to-unit spread
     actuator_gain: tuple[float, float] = (0.8, 1.2)
