@@ -138,6 +138,7 @@ class RewardWeightCfg:
 
     action_rate: float = -0.01
     stand_still: float = -0.5
+    head_natural: float = -0.5
     termination: float = -50.0
 
 

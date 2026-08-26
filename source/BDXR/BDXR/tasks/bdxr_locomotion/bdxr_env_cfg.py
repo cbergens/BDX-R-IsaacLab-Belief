@@ -434,6 +434,15 @@ class RewardsCfg:
         },
     )
 
+    # Penalize the robot for deviating head joints from their natural positions
+    head_natural = RewTerm(
+        fun=mdp.joint_vel_l2,
+        weight=WEIGHTS.head_natural,
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=JOINTS.head)
+        }
+    )
+
     # Termination Penalty - penalizes the robot for death
     termination_penalty = RewTerm(func=mdp.is_terminated, weight=WEIGHTS.termination)
 
