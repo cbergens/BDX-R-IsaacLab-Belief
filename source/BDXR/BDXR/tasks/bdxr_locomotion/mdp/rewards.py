@@ -14,6 +14,7 @@ import torch
 from isaaclab.assets import Articulation
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import ContactSensor
+from isaaclab.utils.math import quat_apply_inverse
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -58,7 +59,7 @@ def gait_contact_schedule(
     phase = get_phase(env, period)
 
     # Each foot stands for the first `duty` of its own cycle; foot 1 trails by half a cycle
-    want = torch.stack([(phase < duty).float(), (((phase + 0.5) % 1.0) < duty).float()], dim=-1)
+    want = torch.stack([(phase < duty).float(), (from isaaclab.utils.math import quat_apply_inverse((phase + 0.5) % 1.0) < duty).float()], dim=-1)
 
     # Max over the sensor history debounces single-frame contact dropouts
     sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
@@ -115,3 +116,59 @@ def get_phase(env: ManagerBasedRLEnv, period: float) -> torch.Tensor:
     """Position within the current gait cycle, in [0, 1)."""
 
     return ((env.episode_length_buf.float() * env.step_dt) / period) % 1.0
+
+def head_attitude_tracking_exp(
+        env: ManagerBasedRLEnv,
+        command_name: str,
+        asset_cfg: SceneEntityCfg,
+        std: float = 0.2,
+) -> torch.Tensor:
+    """Head reward for holding commanded gravity referenced pitch/roll"""
+
+    asset: Articulation = env.scene[asset_cfg.name]
+    command = env.command_manager.get_command(command_name)
+
+    # Get gravity from the head reference frame by applying an 
+    # inverse quat rotation to it.
+    gravity_head = quat_apply_inverse(
+        asset.data.body_quat_w[:, asset_cfg.body_ids[0], :],
+        asset.data.GRAVITY_VEC_W
+    )
+
+    # Get pitch by applying an asin on (head_relative_x_grav_component / real_world_grav)
+    # Real world grav is a unit vector so it cancels
+    pitch = torch.asin(gravity_head[:, 0].clamp(-1, 1))
+
+    # Get roll by applying an atan2 on the negatives of the head relative y and z components of gravity
+    # Using these two components silently absorbs any coupling from pitch joints
+    roll = torch.atan2(-gravity_head[:, 1], -gravity_head[:, 2])
+
+    # Square individual pitch and yaw reward components to reduce reward coupling
+    error = (pitch - command[:, 0]).square() + (roll - command[:, 1]).square()
+
+    # Gaussian Kernel on the squared error
+    return torch.exp(-error / std ** 2)
+
+def head_yaw_tracking_exp(
+        env: ManagerBasedRLEnv,
+        command_name: str,
+        asset_cfg: SceneEntityCfg,
+        std: float = 0.5
+) -> torch.Tensor:
+    """Reward the head for holding the commanded body relative yaw tensor
+    
+    This is held different from the head_attitude_tracking_exp rew function
+    because this is something that slews to the position over time. It is
+    a different, less immediate motion that the attitude, thus it gets a different
+    reward function.
+    """
+
+    asset: Articulation = env.scene[asset_cfg.name]
+    command = env.command_manager.get(command_name)
+
+    # Get body relative yaw, raw joint position of head_yaw
+    yaw = asset.data.joint_pos[:, asset_cfg.joint_ids[0]]
+    error = (yaw - command[:, 2]).square()
+
+    # Guassian kernel on the squared error
+    return torch.exp(-error / std ** 2)
