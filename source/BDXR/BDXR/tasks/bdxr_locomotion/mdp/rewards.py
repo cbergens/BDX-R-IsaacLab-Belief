@@ -25,6 +25,8 @@ __all__ = [
     "gait_contact_schedule",
     "foot_swing_height_track",
     "get_phase",
+    "head_attitude_tracking_exp",
+    "head_yaw_tracking_exp"
 ]
 
 
@@ -131,8 +133,8 @@ def head_attitude_tracking_exp(
     # Get gravity from the head reference frame by applying an 
     # inverse quat rotation to it.
     gravity_head = quat_apply_inverse(
-        asset.data.body_quat_w[:, asset_cfg.body_ids[0], :],
-        asset.data.GRAVITY_VEC_W
+        asset.data.body_quat_w.torch[:, asset_cfg.body_ids[0], :],
+        asset.data.GRAVITY_VEC_W.torch
     )
 
     # Get pitch by applying an asin on (head_relative_x_grav_component / real_world_grav)
@@ -143,7 +145,7 @@ def head_attitude_tracking_exp(
     # Using these two components silently absorbs any coupling from pitch joints
     roll = torch.atan2(-gravity_head[:, 1], -gravity_head[:, 2])
 
-    # Square individual pitch and yaw reward components to reduce reward coupling
+    # Square individual pitch and roll reward components to reduce reward coupling
     error = (pitch - command[:, 0]).square() + (roll - command[:, 1]).square()
 
     # Gaussian Kernel on the squared error
@@ -164,10 +166,10 @@ def head_yaw_tracking_exp(
     """
 
     asset: Articulation = env.scene[asset_cfg.name]
-    command = env.command_manager.get(command_name)
+    command = env.command_manager.get_command(command_name)
 
     # Get body relative yaw, raw joint position of head_yaw
-    yaw = asset.data.joint_pos[:, asset_cfg.joint_ids[0]]
+    yaw = asset.data.joint_pos.torch[:, asset_cfg.joint_ids[0]]
     error = (yaw - command[:, 2]).square()
 
     # Guassian kernel on the squared error
