@@ -25,7 +25,7 @@ from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 from isaaclab_physx.physics import PhysxCfg
 
 from . import mdp
-from .config import ACTION, BODIES, COMMANDS, EVENTS, GAIT, JOINTS, OBS_NOISE, REWARD_PARAMS, WEIGHTS
+from .config import ACTION, HEAD, BODIES, COMMANDS, EVENTS, GAIT, JOINTS, OBS_NOISE, REWARD_PARAMS, WEIGHTS
 
 ##
 # Pre-defined configs
@@ -108,7 +108,7 @@ class ActionsCfg:
     # Joint position action, limit the rate at which the action can change
     joint_pos = mdp.RateLimitedJointPositionActionCfg(
         asset_name="robot",
-        joint_names=JOINTS.legs,
+        joint_names=JOINTS.actuated,
         preserve_order=True,
         scale=ACTION.scale,
         use_default_offset=True,
@@ -137,6 +137,26 @@ class ObservationsCfg:
                 noise_cfg=Unoise(n_min=-OBS_NOISE.imu_gravity, n_max=OBS_NOISE.imu_gravity),
                 bias_noise_cfg=Unoise(n_min=-OBS_NOISE.imu_gravity_bias, n_max=OBS_NOISE.imu_gravity_bias),
             ),
+        )
+
+        # Head joint positions
+        head_joints = ObsTerm(
+            func=mdp.joint_pos_rel,
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=JOINTS.head, preserve_order=True)},
+            noise=Unoise(n_min=-OBS_NOISE.joint_pos, n_max=OBS_NOISE.joint_pos)
+        )
+
+        # Head joint velocities
+        head_joint_vel = ObsTerm(
+            func=mdp.joint_vel_rel,
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=JOINTS.head, preserve_order=True)},
+            noise=Unoise(n_min=-OBS_NOISE.joint_vel, n_max=OBS_NOISE.joint_vel),
+        )
+
+        # Head pose command
+        head_pose_command = ObsTerm(
+            func=mdp.generated_commands,
+            params={"command_name": "head_pose"}
         )
 
         # Leg joint positions
@@ -215,6 +235,20 @@ class ObservationsCfg:
 class CommandsCfg:
     """Configuration for velocity commands"""
 
+    head_pose = mdp.HeadPoseCommandCfg(
+        asset_name="robot",
+        head_body_name=BODIES.head,
+        yaw_joint_name=JOINTS.head[2],
+        resampling_time_range = HEAD.resampling_time_range,
+        rel_still_envs=HEAD.rel_still_envs,
+        debug_vis=True,
+        ranges=mdp.HeadPoseCommandCfg.Ranges(
+            pitch=HEAD.pitch,
+            roll=HEAD.roll,
+            yaw=HEAD.yaw
+        )
+    )
+
     base_velocity = mdp.UniformVelocityCommandCfg(
         asset_name="robot",
         resampling_time_range=COMMANDS.resampling_time_range,
@@ -230,6 +264,7 @@ class CommandsCfg:
             heading=(-math.pi, math.pi),
         ),
     )
+
 
 
 @configclass
@@ -268,7 +303,7 @@ class EventCfg:
         func=mdp.randomize_actuator_gains,
         mode="startup",
         params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=JOINTS.legs),
+            "asset_cfg": SceneEntityCfg("robot", joint_names=JOINTS.actuated),
             "stiffness_distribution_params": EVENTS.actuator_gain,
             "damping_distribution_params": EVENTS.actuator_gain,
             "operation": "scale",
@@ -328,6 +363,28 @@ class RewardsCfg:
         func=mdp.track_ang_vel_z_world_exp,
         weight=WEIGHTS.track_ang_vel_z,
         params={"command_name": "base_velocity", "std": REWARD_PARAMS.track_ang_vel_std},
+    )
+
+    # Reward the robot for maintaining the commanded gravity relative head attitude
+    head_attitude = RewTerm(
+        func=mdp.head_attitude_tracking_exp,
+        weight = WEIGHTS.head_attitude,
+        params={
+            "command_name": "head_pose",
+            "asset_cfg": SceneEntityCfg("robot", body_names=BODIES.head),
+            "std": HEAD.attitude_std
+        }
+    )
+
+    # Reward the robot for maintaining the commanded body relative head yaw
+    head_yaw = RewTerm(
+        func=mdp.head_yaw_tracking_exp,
+        weight = WEIGHTS.head_yaw,
+        params={
+            "command_name": "head_pose",
+            "asset_cfg": SceneEntityCfg("robot", joint_names=JOINTS.head[2]),
+            "std": HEAD.yaw_std
+        }
     )
 
     # Reward the robot for keeping one foot off the ground while moving for
@@ -404,14 +461,14 @@ class RewardsCfg:
     joint_pos_limits = RewTerm(
         func=mdp.joint_pos_limits,
         weight=WEIGHTS.joint_pos_limits,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=JOINTS.legs)},
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=JOINTS.actuated)},
     )
 
     # Joint Torque Penalty - penalize the robot for straining servos in joints
     joint_torques_l2 = RewTerm(
         func=mdp.joint_torques_l2,
         weight=WEIGHTS.joint_torques,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=JOINTS.legs)},
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=JOINTS.actuated)},
     )
 
     # Joint Acceleration Penalty - penalize the robot for straining servos in joints
@@ -432,15 +489,6 @@ class RewardsCfg:
             "command_name": "base_velocity",
             "asset_cfg": SceneEntityCfg("robot", joint_names=JOINTS.legs),
         },
-    )
-
-    # Penalize the robot for deviating head joints from their natural positions
-    head_natural = RewTerm(
-        fun=mdp.joint_vel_l2,
-        weight=WEIGHTS.head_natural,
-        params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=JOINTS.head)
-        }
     )
 
     # Termination Penalty - penalizes the robot for death

@@ -37,17 +37,40 @@ class JointCfg:
     # Held at default by their own actuator group in bdxr.py; not in the action space
     head: list[str] = ["Neck_Pitch", "Head_Pitch", "Head_Yaw", "Head_Roll"]
 
+    # Hold onto action space order
+    actuated: list = legs + head
+
+@configclass
+class HeadCfg:
+    
+    # Resampling time range for gaze commands
+    resampling_time_range: tuple[float, float] = (2.0, 5.0)
+
+    # Relative still envs fraction
+    rel_still_envs: float = 0.25
+
+    # Desired pitch, roll, and yaw ranges
+    pitch: tuple[float, float] = (-0.35, 0.35)
+    roll: tuple[float, float] = (-0.15, 0.15)
+    yaw: tuple[float, float] = (-0.6, 0.6)
+
+    # stds for gaussian kernals
+    attitude_std: float = 0.2
+    yaw_std: float = 0.5
+
+
 
 @configclass
 class BodyCfg:
-    """Link-name patterns. Case matters -- the URDF exporter capitalised every link."""
+    """Link-name patterns. Case matters, the URDF exporter capitalises every link"""
 
+    head: str = "Head_Roll_Motor"
     base: str = "base_link"
     feet: str = ".*_Foot"
 
     # The thigh survives merge_fixed_joints under its motor's name; Upper_Leg is folded
     # into it. Terminating here catches the leg-crossing gaits that self-collisions would
-    illegal_contact: list[str] = ["base_link", ".*_Hip_Pitch_Motor"]
+    illegal_contact: list[str] = ["base_link", ".*_Hip_Pitch_Motor", "Head_.*"]
 
 
 @configclass
@@ -121,6 +144,10 @@ class RewardWeightCfg:
     gait_contact: float = 1.0
     foot_swing_height: float = 1.0
 
+    # Head/Gaze Control Weights
+    head_attitude: float = 1.0
+    head_yaw: float = 0.3
+
     # Penalises squared sag, so the magnitude grows with the length ratio squared
     min_height: float = -5.0
 
@@ -138,7 +165,6 @@ class RewardWeightCfg:
 
     action_rate: float = -0.01
     stand_still: float = -0.5
-    head_natural: float = -0.5
     termination: float = -50.0
 
 
@@ -198,6 +224,7 @@ class EventRangeCfg:
 # Singletons read by bdxr_env_cfg.py
 JOINTS = JointCfg()
 BODIES = BodyCfg()
+HEAD = HeadCfg()
 GAIT = GaitCfg()
 ACTION = ActionCfg()
 COMMANDS = CommandCfg()
