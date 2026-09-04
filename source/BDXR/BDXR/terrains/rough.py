@@ -17,7 +17,7 @@ BDXR_ROUGH_CFG = TerrainGeneratorCfg(
     size=(5.6, 5.6),
     border_width=14.0,
     num_rows=8,
-    num_cols=10,
+    num_cols=30,
 
     # Columns become terrain type and rows become difficulty, so every type is
     # guaranteed present instead of left to a per-cell random draw

@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 
 # Control which reward functions actually get exported
 __all__ = [
+    "body_xy_ang_acc_l2",
     "base_height_floor_l2",
     "gait_contact_schedule",
     "foot_swing_height_track",
@@ -29,6 +30,13 @@ __all__ = [
     "head_yaw_tracking_exp"
 ]
 
+def body_xy_ang_acc_l2(
+        env: ManagerBasedRLEnv,
+        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+        ) -> torch.Tensor:
+    """Penalize the pitch roll angular acceleration of bodies using L2-kernel."""
+    asset: Articulation = env.scene[asset_cfg.name]
+    return torch.sum(torch.linalg.norm(asset.data.body_ang_acc_w.torch[:, asset_cfg.body_ids, :2], dim=-1), dim=1)
 
 def base_height_floor_l2(
     env: ManagerBasedRLEnv,
@@ -169,7 +177,7 @@ def head_yaw_tracking_exp(
     command = env.command_manager.get_command(command_name)
 
     # Get body relative yaw, raw joint position of head_yaw
-    yaw = asset.data.joint_pos.torch[:, asset_cfg.joint_ids[0]]
+    yaw = - asset.data.joint_pos.torch[:, asset_cfg.joint_ids[0]]
     error = (yaw - command[:, 2]).square()
 
     # Guassian kernel on the squared error

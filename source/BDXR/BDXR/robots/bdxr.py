@@ -14,8 +14,6 @@ import isaaclab.sim as sim_utils
 from isaaclab.actuators import DelayedPDActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 
-import torch
-
 BDXR_URDF_PATH = Path(__file__).resolve().parents[2] / "data/Robots/BDXR/URDF.urdf"
 
 
@@ -41,16 +39,19 @@ class MotorConstants:
 
     # RobStride 05 Motor constants (formuliac, awaiting chirp testing)
     class RobStride05:
-        _natural_frequency = 10 * 2.0 * torch.math.pi # Private 10 Hz value
-        _damping_ratio = 2.0
+        _damping_ratio = 0.8
         # The head hanging off Head_Pitch is 0.0229 kg.m2
         _load_inertia = 0.0229
 
+        # Cap kp by torque rather than droop. Anything stiffer saturates the 4.2 N.m
+        # limit at the ~5 deg of tracking error the head sees, and it chatters
+        _linear_range = 0.148
+
         armature = 7e-4
-        kp = _load_inertia * _natural_frequency**2
-        kd = 2.0 * _damping_ratio * _load_inertia * _natural_frequency
         max_vel = 45
-        max_eff = 4.2
+        max_eff = 3.85
+        kp = max_eff / _linear_range
+        kd = 2.0 * _damping_ratio * (_load_inertia * kp) ** 0.5
 
     # TODO: Set true control loop latency. Currently ~15ms
     min_delay = 3
@@ -131,6 +132,13 @@ BDX_R_CFG = ArticulationCfg(
                 ".*_Knee": MotorConstants.RobStride03.armature,
                 ".*_Ankle": MotorConstants.RobStride02.armature,
             },
+            effort_limit={
+                ".*_Hip_Yaw": MotorConstants.RobStride03.max_eff,
+                ".*_Hip_Roll": MotorConstants.RobStride03.max_eff,
+                ".*_Hip_Pitch": MotorConstants.RobStride03.max_eff,
+                ".*_Knee": MotorConstants.RobStride03.max_eff,
+                ".*_Ankle": MotorConstants.RobStride02.max_eff,
+            },
             effort_limit_sim={
                 ".*_Hip_Yaw": MotorConstants.RobStride03.max_eff,
                 ".*_Hip_Roll": MotorConstants.RobStride03.max_eff,
@@ -163,6 +171,10 @@ BDX_R_CFG = ArticulationCfg(
                 "Head_.*": MotorConstants.RobStride05.armature,
                 "Neck_.*": MotorConstants.RobStride02.armature
             },
+            effort_limit={
+                "Head_.*": MotorConstants.RobStride05.max_eff,
+                "Neck_.*": MotorConstants.RobStride02.max_eff,
+            },
             effort_limit_sim={
                 "Head_.*": MotorConstants.RobStride05.max_eff,
                 "Neck_.*": MotorConstants.RobStride02.max_eff,
@@ -177,4 +189,4 @@ BDX_R_CFG = ArticulationCfg(
         )
     },
 )
-"""Configuration for the Disney BD-X robot with delayed PD actuator model."""
+"""Configuration for the Disney BDX-R robot with delayed PD actuator model."""

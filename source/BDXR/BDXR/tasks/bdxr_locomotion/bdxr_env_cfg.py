@@ -387,6 +387,18 @@ class RewardsCfg:
         }
     )
 
+    head_ang_acc = RewTerm(
+        func=mdp.body_xy_ang_acc_l2,
+        weight=WEIGHTS.head_ang_acc,
+        params={"asset_cfg": SceneEntityCfg("robot", body_names=BODIES.head)}
+    )
+
+    head_yaw_acc = RewTerm(
+        func=mdp.joint_acc_l2,
+        weight=WEIGHTS.head_yaw_acc,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=JOINTS.head_yaw)}
+    )
+
     # Reward the robot for keeping one foot off the ground while moving for
     # "threshold" amount of time
     feet_air_time = RewTerm(
@@ -533,8 +545,11 @@ class BdxrEnvCfg(ManagerBasedRLEnvCfg):
     # Simulation and physics settings
     sim: SimulationCfg = SimulationCfg(
         physics=PhysxCfg(
-            gpu_collision_stack_size=2**28,  #256 MB
+            gpu_collision_stack_size=2**28,
             gpu_max_rigid_patch_count=10 * 2**15,
+            gpu_found_lost_pairs_capacity=2**23,
+            gpu_found_lost_aggregate_pairs_capacity=2**23,
+            gpu_total_aggregate_pairs_capacity=2**23,
         )
     )
 

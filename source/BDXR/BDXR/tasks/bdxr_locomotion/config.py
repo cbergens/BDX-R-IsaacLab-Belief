@@ -23,7 +23,7 @@ class JointCfg:
     """Actuated joint names, explicit and ordered.
 
     Pair with preserve_order=True at every call site: the exported policy indexes the
-    observation and action vectors positionally, so this order is part of its contract.
+    obserbody_ang_acc_l2vation and action vectors positionally, so this order is part of its contract.
     """
 
     legs: list[str] = [
@@ -36,6 +36,8 @@ class JointCfg:
 
     # Held at default by their own actuator group in bdxr.py; not in the action space
     head: list[str] = ["Neck_Pitch", "Head_Pitch", "Head_Yaw", "Head_Roll"]
+
+    head_yaw: list[str] = ["Head_Yaw"]
 
     # Hold onto action space order
     actuated: list = legs + head
@@ -56,7 +58,7 @@ class HeadCfg:
 
     # stds for gaussian kernals
     attitude_std: float = 0.2
-    yaw_std: float = 0.5
+    yaw_std: float = 0.3
 
 
 
@@ -144,10 +146,14 @@ class RewardWeightCfg:
     gait_contact: float = 1.0
     foot_swing_height: float = 1.0
 
-    # Head/Gaze Control Weights
+    # Head/Gaze Control Rewards
     head_attitude: float = 1.0
     head_yaw: float = 0.3
 
+    # Head/Gaze Control Penalties
+    head_ang_acc: float = -2.7e-4
+    head_yaw_acc: float = -4.7e-6
+    
     # Penalises squared sag, so the magnitude grows with the length ratio squared
     min_height: float = -5.0
 

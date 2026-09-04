@@ -99,7 +99,7 @@ class HeadPoseCommand(CommandTerm):
         # NOTE: roll uses atan2 because it is the closest to the head and must absorb any coupling from pitch control
         roll = torch.atan2(-grav_head[:, 1], -grav_head[:, 2])
 
-        yaw = self.robot.data.joint_pos.torch[:, self._yaw_joint_id[0]]
+        yaw = - self.robot.data.joint_pos.torch[:, self._yaw_joint_id[0]]
 
         # Gather error by stacking and normalizing individual pitch, roll, yaw error
         attitude_error = torch.stack(
@@ -132,7 +132,7 @@ class HeadPoseCommand(CommandTerm):
         target_quat = quat_mul(
 
             # World yaw
-            yaw_quat(self.robot.data.root_quat_w),
+            yaw_quat(self.robot.data.root_quat_w.torch),
 
             # Pose command pitch, roll, yaw
             quat_from_euler_xyz(
