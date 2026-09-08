@@ -18,7 +18,7 @@ This repository covers the development of BDX-R, a personal/experimental endeavo
 
 _BDX-R moving down stairs with a disturbance:_
 
-[BDX-R Down Stairs with Disturbance](https://github.com/user-attachments/assets/bd6b44b5-2557-4bed-a456-952228aff659)
+[BDX-R Rough Terrain with Disturbance](https://github.com/user-attachments/assets/28d0ae42-52a3-4c8b-8a4b-85e8e2bb3e92)
 
 ## 🎯 Current Focus: Walking and Sim2Real
 
@@ -26,7 +26,8 @@ Currently, a sim-robust policy exists; however, our next objectives are the foll
 
 -   ~~**Update URDF kinematics:** Pull the more up-to-date version of the robot from Kayden's mujoco repository, and reconfigure it in Isaac Lab.~~
 -   ~~**Unlock Head and Neck Joints:** This could be a result of the above objective; however, currently, the robot's head and neck joints are static.~~
--   **Add Camera and Explore ROS2 Bridge:** Add a camera to the robot's head and view it using a ROS2 bridge in-sim. This, in addition to issuing commands through ROS2, will gain confidence in VLA control feasibility.
+-   **~~Add Camera and~~ Explore ROS2 Bridge:** Add a camera to the robot's head and [Screencast from 09-07-2026 09:33:27 PM.webm](https://github.com/user-attachments/assets/76e0d5df-2b79-48f3-8b0e-7e3c3e8c5c66)
+view it using a ROS2 bridge in-sim. This, in addition to issuing commands through ROS2, will gain confidence in VLA control feasibility.
 -   **Begin Exploring Student-Teacher Distillation:** Begin researching how to implement imitation learning between two models in Isaac Lab. Train a privileged teacher model.
 -   **Begin prototyping physical components:** 3D-print body parts, buy Jetson Orin Nano, and begin exploring potential implementations for additional sensors to open foundation-model opportunities.
 
