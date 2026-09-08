@@ -17,7 +17,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.sensors import ContactSensorCfg, ImuCfg, PvaCfg
+from isaaclab.sensors import CameraCfg, ContactSensorCfg, ImuCfg, PvaCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.noise import NoiseModelWithAdditiveBiasCfg

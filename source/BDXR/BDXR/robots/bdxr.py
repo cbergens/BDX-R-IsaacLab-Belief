@@ -58,15 +58,8 @@ class MotorConstants:
     max_delay = 3
 
 BDX_R_CFG = ArticulationCfg(
-    spawn=sim_utils.UrdfFileCfg(
-        fix_base=False,
-        merge_fixed_joints=True,
-
-        # Collapses the per-link visual meshes the 3.0 importer emits separately:
-        # 166 -> 100 Xform prims per robot. Viewport step cost at 80 envs drops
-        # 95.4 -> 77.2 ms. Physics is untouched -- 15 bodies, 14 DOFs, same mass
-        merge_mesh=True,
-        asset_path=str(BDXR_URDF_PATH),
+    spawn=sim_utils.UsdFileCfg(
+        usd_path=str(BDXR_URDF_PATH.parent / "converted/URDF/URDF.usda"),
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
@@ -85,11 +78,6 @@ BDX_R_CFG = ArticulationCfg(
             enabled_self_collisions=False,
             solver_position_iteration_count=4,
             solver_velocity_iteration_count=0,
-        ),
-
-        # Gains come from the actuator model below, not the importer
-        joint_drive=sim_utils.UrdfConverterCfg.JointDriveCfg(
-            gains=sim_utils.UrdfConverterCfg.JointDriveCfg.PDGainsCfg(stiffness=0, damping=0)
         ),
     ),
 

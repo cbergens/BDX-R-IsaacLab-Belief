@@ -26,6 +26,7 @@ Currently, a sim-robust policy exists; however, our next objectives are the foll
 
 -   ~~**Update URDF kinematics:** Pull the more up-to-date version of the robot from Kayden's mujoco repository, and reconfigure it in Isaac Lab.~~
 -   ~~**Unlock Head and Neck Joints:** This could be a result of the above objective; however, currently, the robot's head and neck joints are static.~~
+-   **Add Camera and Explore ROS2 Bridge:** Add a camera to the robot's head and view it using a ROS2 bridge in-sim. This, in addition to issuing commands through ROS2, will gain confidence in VLA control feasibility.
 -   **Begin Exploring Student-Teacher Distillation:** Begin researching how to implement imitation learning between two models in Isaac Lab. Train a privileged teacher model.
 -   **Begin prototyping physical components:** 3D-print body parts, buy Jetson Orin Nano, and begin exploring potential implementations for additional sensors to open foundation-model opportunities.
 
