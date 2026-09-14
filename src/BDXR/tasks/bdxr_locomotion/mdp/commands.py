@@ -7,7 +7,6 @@ from collections.abc import Sequence
 from dataclasses import MISSING                                                     
 from typing import TYPE_CHECKING
 
-from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm, CommandTermCfg
 from isaaclab.utils import configclass
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
@@ -15,6 +14,7 @@ from isaaclab.markers.config import RED_ARROW_X_MARKER_CFG
 from isaaclab.utils.math import quat_apply_inverse, quat_from_euler_xyz, quat_mul, yaw_quat
 
 if TYPE_CHECKING:
+    from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedRLEnv
 
 class HeadPoseCommand(CommandTerm):

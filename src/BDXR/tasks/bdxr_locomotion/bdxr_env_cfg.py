@@ -6,7 +6,6 @@
 import copy
 import math
 
-import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -17,6 +16,8 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
+from isaaclab.sim.spawners import lights
+from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 from isaaclab.sensors import CameraCfg, ContactSensorCfg, ImuCfg, PvaCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
@@ -52,7 +53,7 @@ class BdxrSceneCfg(InteractiveSceneCfg):
         # None spreads spawns over every difficulty row; 0 pinned all envs to row 0
         max_init_terrain_level=None,
         collision_group=-1,
-        physics_material=sim_utils.RigidBodyMaterialCfg(
+        physics_material=PhysxRigidBodyMaterialCfg(
             friction_combine_mode="multiply",
             restitution_combine_mode="multiply",
             static_friction=1.0,
@@ -92,7 +93,7 @@ class BdxrSceneCfg(InteractiveSceneCfg):
     # lights
     dome_light = AssetBaseCfg(
         prim_path="/World/DomeLight",
-        spawn=sim_utils.DomeLightCfg(color=(0.9, 0.9, 0.9), intensity=500.0),
+        spawn=lights.DomeLightCfg(color=(0.9, 0.9, 0.9), intensity=500.0),
     )
 
 

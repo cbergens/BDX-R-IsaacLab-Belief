@@ -21,7 +21,7 @@ app = AppLauncher(headless=True).app
 import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab.sim.converters import UrdfConverter  # noqa: E402
 
-BDXR_URDF_PATH = Path(__file__).resolve().parents[1] / "source/BDXR/data/Robots/BDXR/URDF.urdf"
+BDXR_URDF_PATH = Path(__file__).resolve().parents[1] / "src/BDXR/data/Robots/BDXR/URDF.urdf"
 
 BDX_R_URDF_CFG = sim_utils.UrdfConverterCfg(
     asset_path=str(BDXR_URDF_PATH),

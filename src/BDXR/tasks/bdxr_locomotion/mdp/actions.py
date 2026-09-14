@@ -8,16 +8,14 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import MISSING
-
+from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.envs.mdp.actions import JointPositionAction
-from isaaclab.envs.mdp.actions.actions_cfg import JointPositionActionCfg
-from isaaclab.managers.action_manager import ActionTerm
-from isaaclab.utils import configclass
 
-__all__ = ["RateLimitedJointPositionAction", "RateLimitedJointPositionActionCfg"]
+if TYPE_CHECKING:
+    from .actions_cfg import RateLimitedJointPositionActionCfg
+__all__ = ["RateLimitedJointPositionAction"]
 
 
 class RateLimitedJointPositionAction(JointPositionAction):
@@ -55,17 +53,3 @@ class RateLimitedJointPositionAction(JointPositionAction):
         if env_ids is None:
             env_ids = slice(None)
         self._last_target[env_ids] = self._asset.data.default_joint_pos.torch[env_ids][:, self._joint_ids]
-
-
-@configclass
-class RateLimitedJointPositionActionCfg(JointPositionActionCfg):
-    """Configuration for :class:`RateLimitedJointPositionAction`."""
-
-    class_type: type[ActionTerm] = RateLimitedJointPositionAction
-
-    max_joint_velocity: float = MISSING
-    """Max rate of change of the position target, rad/s.
-
-    Set to the slowest actuated joint's velocity_limit_sim so the limiter and the
-    physics agree on what the servo can do.
-    """

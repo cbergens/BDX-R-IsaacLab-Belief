@@ -10,11 +10,13 @@
 
 from pathlib import Path
 
-import isaaclab.sim as sim_utils
+from isaaclab.utils import configclass
+from isaaclab.sim.spawners import from_files
+from isaaclab_physx.sim.schemas import PhysxRigidBodyPropertiesCfg, PhysxArticulationRootPropertiesCfg
 from isaaclab.actuators import DelayedPDActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 
-BDXR_URDF_PATH = Path(__file__).resolve().parents[2] / "data/Robots/BDXR/URDF.urdf"
+BDXR_URDF_PATH = Path(__file__).resolve().parents[1] / "data/Robots/BDXR/URDF.urdf"
 
 
 # Taken from:
@@ -58,10 +60,10 @@ class MotorConstants:
     max_delay = 3
 
 BDX_R_CFG = ArticulationCfg(
-    spawn=sim_utils.UsdFileCfg(
+    spawn=from_files.UsdFileCfg(
         usd_path=str(BDXR_URDF_PATH.parent / "converted/URDF/URDF.usda"),
         activate_contact_sensors=True,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        rigid_props=PhysxRigidBodyPropertiesCfg(
             disable_gravity=False,
             retain_accelerations=False,
             linear_damping=0.0,
@@ -74,7 +76,7 @@ BDX_R_CFG = ArticulationCfg(
         # Self-collision disabled for step time. The property it protects -- no gaits
         # where the legs pass through each other -- is recovered by terminating on
         # upper-leg contact instead
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+        articulation_props=PhysxArticulationRootPropertiesCfg(
             enabled_self_collisions=False,
             solver_position_iteration_count=4,
             solver_velocity_iteration_count=0,
