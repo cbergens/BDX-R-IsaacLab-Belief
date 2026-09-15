@@ -28,6 +28,7 @@ Currently, a sim-robust policy exists; however, our next objectives are the foll
 -   ~~**Unlock Head and Neck Joints:** This could be a result of the above objective; however, currently, the robot's head and neck joints are static.~~
 -   **~~Add Camera and~~ Explore ROS2 Bridge:** Add a camera to the robot's head and [Screencast from 09-07-2026 09:33:27 PM.webm](https://github.com/user-attachments/assets/76e0d5df-2b79-48f3-8b0e-7e3c3e8c5c66)
 view it using a ROS2 bridge in-sim. This, in addition to issuing commands through ROS2, will gain confidence in VLA control feasibility.
+	- Study [this humanoid control node example](https://github.com/isaac-sim/IsaacSim-ros_workspaces/tree/main/humble_ws/src/humanoid_locomotion_policy_example/h1_fullbody_controller) to begin construction of a BDXR ROS2 control node for in-sim policy validation. 
 -   **Begin Exploring Student-Teacher Distillation:** Begin researching how to implement imitation learning between two models in Isaac Lab. Train a privileged teacher model.
 -   **Begin prototyping physical components:** 3D-print body parts, buy Jetson Orin Nano, and begin exploring potential implementations for additional sensors to open foundation-model opportunities.
 
