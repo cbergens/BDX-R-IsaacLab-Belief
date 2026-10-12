@@ -128,7 +128,7 @@ class CommandCfg:
 
     resampling_time_range: tuple[float, float] = (10.0, 10.0)
     rel_standing_envs: float = 0.2
-    rel_heading_envs: float = 1.0
+    rel_heading_envs: float = 0.5
     heading_control_stiffness: float = 0.5
 
     lin_vel_x: tuple[float, float] = (-0.297, 0.451)
@@ -184,7 +184,7 @@ class RewardParamCfg:
     """Trunk height above the lower foot below which the sag penalty engages."""
 
     track_lin_vel_std: float = 0.2
-    track_ang_vel_std: float = 0.5
+    track_ang_vel_std: float = 0.25
 
 
 @configclass

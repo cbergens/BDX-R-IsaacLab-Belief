@@ -15,7 +15,7 @@ class PPORunnerCfg(RslRlOnPolicyRunnerCfg):
 
     # The Open Duck Mini v2 budget of 75000 agent steps at 32 rollouts, and its
     # checkpoint cadence of 4800 steps, expressed in iterations
-    max_iterations = 12000
+    max_iterations = 15000
     save_interval = 150
 
     experiment_name = "bdxr_walk"

@@ -1813,7 +1813,7 @@
   <parent link="Head_Roll_Connector"/>
   <child link="Head_Roll_Motor"/>
   <axis xyz="-1.0 0.0 0.0"/>
-  <limit lower="-0.5235987755982988" upper="0.5235987755982988" effort="6.0" velocity="45.0"/>
+  <limit lower="-0.25" upper="0.25" effort="6.0" velocity="45.0"/>
 </joint>
 
 <joint name="Rigid 19" type="fixed">

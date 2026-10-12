@@ -63,3 +63,6 @@ PORTING_CHECKLIST.md
 
 # Observation for terminal-persistant training
 nohup.out
+
+# VS Code C/C++ index database, several GB
+.vscode/browse.vc.db*

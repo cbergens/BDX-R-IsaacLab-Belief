@@ -77,7 +77,7 @@ BDX_R_CFG = ArticulationCfg(
         # where the legs pass through each other -- is recovered by terminating on
         # upper-leg contact instead
         articulation_props=PhysxArticulationRootPropertiesCfg(
-            enabled_self_collisions=False,
+            enabled_self_collisions=True,
             solver_position_iteration_count=4,
             solver_velocity_iteration_count=0,
         ),

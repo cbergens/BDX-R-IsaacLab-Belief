@@ -20,8 +20,26 @@ app = AppLauncher(headless=True).app
 
 import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab.sim.converters import UrdfConverter  # noqa: E402
+from pxr import Usd, UsdPhysics  # noqa: E402
 
 BDXR_URDF_PATH = Path(__file__).resolve().parents[1] / "src/BDXR/data/Robots/BDXR/URDF.urdf"
+
+# ponytail: hulls overlap where real parts clear, so these skip collision. Decompose them if one must collide.
+FILTERED_PAIRS = {
+    "/URDF/Geometry/base_link": [
+        "/URDF/Geometry/base_link/Left_Hip_Top_Holder/Left_Hip_Roll_Connector",
+        "/URDF/Geometry/base_link/Right_Hip_Top_Holder/Right_Hip_Roll_Connector",
+    ],
+    "/URDF/Geometry/base_link/Neck/Head_Pitch_Motor_Support": [
+        "/URDF/Geometry/base_link/Neck/Head_Pitch_Motor_Support/Head_Roll_Connector/Head_Roll_Motor",
+    ],
+    "/URDF/Geometry/base_link/Left_Hip_Top_Holder": [
+        "/URDF/Geometry/base_link/Left_Hip_Top_Holder/Left_Hip_Roll_Connector/Left_Hip_Pitch_Motor",
+    ],
+    "/URDF/Geometry/base_link/Right_Hip_Top_Holder": [
+        "/URDF/Geometry/base_link/Right_Hip_Top_Holder/Right_Hip_Roll_Connector/Right_Hip_Pitch_Motor",
+    ],
+}
 
 BDX_R_URDF_CFG = sim_utils.UrdfConverterCfg(
     asset_path=str(BDXR_URDF_PATH),
@@ -37,5 +55,13 @@ BDX_R_URDF_CFG = sim_utils.UrdfConverterCfg(
     ),
 )
 
-print("USD written to:", UrdfConverter(BDX_R_URDF_CFG).usd_path)
+usd_path = UrdfConverter(BDX_R_URDF_CFG).usd_path
+
+# The URDF has no filtered-pair tag, so author the pairs into the generated physics layer.
+physics = Usd.Stage.Open(str(Path(usd_path).parent / "payloads/Physics/physics.usda"))
+for body, others in FILTERED_PAIRS.items():
+    UsdPhysics.FilteredPairsAPI.Apply(physics.GetPrimAtPath(body)).CreateFilteredPairsRel().SetTargets(others)
+physics.GetRootLayer().Save()
+
+print("USD written to:", usd_path)
 app.close()
